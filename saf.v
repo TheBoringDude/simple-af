@@ -1,8 +1,10 @@
 module main
 
-import os
+import os { getwd, join_path, exists, read_lines, file_last_mod_unix }
 import atver
+import utils { walk_ext_exclude, show_error }
 
+// main structs SAF
 struct SAF {
 mut:
 	formatter_cmd string   [required]
@@ -11,14 +13,79 @@ mut:
 	exclude_files []string
 }
 
+// constant values
 const (
 	config_file = '.autoformat'
 	cf_fcmd     = 'FORMATTER'
 	cf_fext     = 'FILE_EXT'
 	cf_edirs    = 'EXCLUDE_DIRS'
 	cf_efiles   = 'EXCLUDE_FILES'
-	working_dir = os.getwd()
+	working_dir = getwd()
 )
+
+// check_config_file checks if the required config file exists or not
+fn get_config_file() []string {
+	cfg_file := join_path(working_dir, config_file)
+
+	if exists(cfg_file) {
+		println('loaded `$cfg_file`')
+	} else {
+		show_error('`$config_file` is required for this to be run')
+	}
+
+	contents := read_lines(cfg_file) or {
+		show_error('cannot read contents of `$cfg_file`')
+		return []
+	}
+
+	return contents
+}
+
+// parse_config parse the config file from path
+//   it checks if the required configurations are present or set
+fn parse_config() &SAF {
+	// new saf intance
+	mut saf := &SAF{
+		formatter_cmd: ''
+		file_ext: ''
+	}
+
+	for i in get_config_file() {
+		if ':' in i {
+			t := i.split(':')
+			attr := t[0]
+			value := t[1]
+
+			match attr {
+				cf_fcmd {
+					saf.formatter_cmd = value.trim_space()
+
+					if saf.formatter_cmd == '' {
+						show_error('Please set the FORMATTER in your `.autoformat` config file.')
+					}
+				}
+				cf_fext {
+					saf.file_ext = value.trim_space()
+
+					if saf.file_ext == '' {
+						show_error('Please set the FILE_EXT in your `.autoformat` config file.')
+					}
+				}
+				cf_edirs {
+					saf.exclude_dirs = value.split(',').map(it.trim_space())
+				}
+				cf_efiles {
+					saf.exclude_files = value.split(',').map(it.trim_space())
+				}
+				else {
+					// do nothing if there are unknown configurations
+				}
+			}
+		}
+	}
+
+	return saf
+}
 
 // init_run checks for os arguments
 fn check_args_live() bool {
@@ -45,8 +112,14 @@ fn init_direct_format(saffer &SAF, temp_files []string) {
 
 // format_file runs the formatter defined in the config file
 fn format_file(cmd string, filename string) {
+	mut fmt := true
 	os.exec(cmd + ' ' + filename) or {
 		eprintln('\n formatter failed: please check the FORMATTER command and try again')
+		fmt = false
+	}
+
+	if fmt {
+		println('>> formatted $filename')
 	}
 }
 
@@ -54,11 +127,14 @@ fn format_file(cmd string, filename string) {
 fn main() {
 	// new saffer instance
 	saffer := parse_config()
-	mut temp_files := os.walk_ext(working_dir, saffer.file_ext)
+	mut temp_files := walk_ext_exclude(working_dir, saffer.file_ext, saffer.exclude_dirs)
 
 	// run init
+	init_direct_format(saffer, temp_files)
+
+	// if --live is not present, exit
+	//  else, continue
 	if !check_args_live() {
-		init_direct_format(saffer, temp_files)
 		exit(0)
 	}
 	// new watcher instance
@@ -90,83 +166,32 @@ fn main() {
 
 	// loop to the working_dir
 	// WATCHING FOLDER CHANGES IS TOO HEAVY, . THIS WILL BE IMPLMENTED IN THE FUTURE
+	mut ftimestamp := file_last_mod_unix(working_dir)
+
+	watcher_adder(mut watcher, temp_files, saffer)
+
+	for {
+		ltimestamp := file_last_mod_unix(working_dir)
+		if ltimestamp > ftimestamp {
+			ftimestamp = ltimestamp
+			temp_files = walk_ext_exclude(working_dir, saffer.file_ext, saffer.exclude_dirs)
+
+			watcher_adder(mut watcher, temp_files, saffer)
+		}
+	}
+
+	// done, exit
+	done <- true
+}
+
+// watcher_adder adds the files to the watcher
+fn watcher_adder(mut watcher atver.Watcher, temp_files []string, saffer &SAF) {
 	for i in temp_files {
 		t := i.split('/')
-		if t[t.len - 1] in saffer.exclude_files {
-			// do nothing
-		} else {
+		if (t[t.len - 1] in saffer.exclude_files) == false {
 			if (i in watcher.files) == false {
 				watcher.add_file(i)
 			}
 		}
 	}
-
-	done <- true
-}
-
-// check_config_file checks if the required config file exists or not
-fn get_config_file() []string {
-	cfg_file := os.join_path(working_dir, config_file)
-
-	if os.exists(cfg_file) {
-		println('loaded `$cfg_file`')
-	} else {
-		eprintln('\n `$config_file` is required for this to be run')
-		exit(0)
-	}
-
-	contents := os.read_lines(cfg_file) or {
-		eprintln('\n  cannot read contents of `$cfg_file`')
-		exit(0)
-	}
-
-	return contents
-}
-
-// parse_config parse the config file from path
-//   it checks if the required configurations are present or set
-fn parse_config() &SAF {
-	// new saf intance
-	mut saf := &SAF{
-		formatter_cmd: ''
-		file_ext: ''
-	}
-
-	for i in get_config_file() {
-		if ':' in i {
-			t := i.split(':')
-			attr := t[0]
-			value := t[1]
-
-			match attr {
-				cf_fcmd {
-					saf.formatter_cmd = value.trim_space()
-
-					if saf.formatter_cmd == '' {
-						eprintln('\n  Please set the FORMATTER in your `.autoformat` config file.')
-						exit(0)
-					}
-				}
-				cf_fext {
-					saf.file_ext = value.trim_space()
-
-					if saf.file_ext == '' {
-						eprintln('\n  Please set the FILE_EXT in your `.autoformat` config file.')
-						exit(0)
-					}
-				}
-				cf_edirs {
-					saf.exclude_dirs = value.split(',').map(it.trim_space())
-				}
-				cf_efiles {
-					saf.exclude_files = value.split(',').map(it.trim_space())
-				}
-				else {
-					// do nothing if there are unknown configurations
-				}
-			}
-		}
-	}
-
-	return saf
 }
