@@ -1,0 +1,3 @@
+FORMATTER: v fmt -w
+FILE_EXT: .v
+EXCLUDE_FILES: atver.v

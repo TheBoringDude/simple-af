@@ -1,5 +1,5 @@
 Module {
-	name: 's-af'
+	name: 'main'
 	description: ''
 	version: '0.0.0'
 	dependencies: []
