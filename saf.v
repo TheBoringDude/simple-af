@@ -1,8 +1,8 @@
 module main
 
-import os { getwd, join_path, exists, read_lines, file_last_mod_unix }
+import os { exists, file_last_mod_unix, getwd, join_path, read_lines }
 import atver
-import utils { walk_ext_exclude, show_error }
+import utils { show_error, walk_ext_exclude }
 
 // main structs SAF
 struct SAF {

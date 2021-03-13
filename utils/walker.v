@@ -1,6 +1,6 @@
 module utils
 
-import os { is_dir, is_link, ls, join_path }
+import os { is_dir, is_link, join_path, ls }
 
 // walk_ext_exclude returns a recursive list of files ending with ext
 //  but excluding files under exclude path dirs
