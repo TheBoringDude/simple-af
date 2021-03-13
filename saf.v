@@ -1,7 +1,7 @@
 module main
 
 import os { exists, file_last_mod_unix, getwd, join_path, read_lines }
-import atver
+import theboringdude.atver
 import utils { show_error, walk_ext_exclude }
 
 // main structs SAF
@@ -113,7 +113,9 @@ fn init_direct_format(saffer &SAF, temp_files []string) {
 // format_file runs the formatter defined in the config file
 fn format_file(cmd string, filename string) {
 	mut fmt := true
-	os.exec(cmd + ' ' + filename) or {
+	exec := os.execute(cmd + ' ' + filename)
+
+	if exec.exit_code != 0 {
 		eprintln('\n formatter failed: please check the FORMATTER command and try again')
 		fmt = false
 	}
