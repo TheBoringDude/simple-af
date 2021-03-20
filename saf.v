@@ -116,7 +116,7 @@ fn format_file(cmd string, filename string) {
 	exec := os.execute(cmd + ' ' + filename)
 
 	if exec.exit_code != 0 {
-		eprintln('\n formatter failed: please check the FORMATTER command and try again')
+		eprintln('\n [$filename] formatter failed: please check the FORMATTER command and try again  \n')
 		fmt = false
 	}
 
