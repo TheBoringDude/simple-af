@@ -17,22 +17,22 @@ mut:
 const (
 	config_file = '.autoformat'
 	cf_fcmd     = 'FORMATTER'
-	cf_fext     = 'FILE_EXT'
+	cf_fext     = 'FILES'
 	cf_edirs    = 'EXCLUDE_DIRS'
 	cf_efiles   = 'EXCLUDE_FILES'
 	working_dir = getwd()
+	cfg_file    = join_path(working_dir, config_file)
 )
+
+fn init() {
+	if !exists(cfg_file) {
+		show_error('`$config_file` is required for this to be run')
+		exit(1)
+	}
+}
 
 // check_config_file checks if the required config file exists or not
 fn get_config_file() []string {
-	cfg_file := join_path(working_dir, config_file)
-
-	if exists(cfg_file) {
-		println('loaded `$cfg_file`')
-	} else {
-		show_error('`$config_file` is required for this to be run')
-	}
-
 	contents := read_lines(cfg_file) or {
 		show_error('cannot read contents of `$cfg_file`')
 		return []
@@ -59,17 +59,9 @@ fn parse_config() &SAF {
 			match attr {
 				cf_fcmd {
 					saf.formatter_cmd = value.trim_space()
-
-					if saf.formatter_cmd == '' {
-						show_error('Please set the FORMATTER in your `.autoformat` config file.')
-					}
 				}
 				cf_fext {
 					saf.file_ext = value.trim_space()
-
-					if saf.file_ext == '' {
-						show_error('Please set the FILE_EXT in your `.autoformat` config file.')
-					}
 				}
 				cf_edirs {
 					saf.exclude_dirs = value.split(',').map(it.trim_space())
@@ -82,6 +74,15 @@ fn parse_config() &SAF {
 				}
 			}
 		}
+	}
+
+	// the formatter should be set
+	if saf.formatter_cmd == '' {
+		show_error('Please set the FORMATTER in your `.autoformat` config file.')
+	}
+	// the extensions to format should also be set
+	if saf.file_ext == '' {
+		show_error('Please set the FILES in your `.autoformat` config file.')
 	}
 
 	return saf
